@@ -3,47 +3,24 @@
 # Funciones acústicas auxiliares para simulación de silenciadores
 # --------------------------------------------
 
-#====================================================================================================================================
-#====================================================================================================================================
-#====================================================================================================================================
-
 # --------------------------------------------
 # Importar librerías necesarias
 # --------------------------------------------
 
 import numpy as np
 
-#====================================================================================================================================
-#====================================================================================================================================
-#====================================================================================================================================
-
 # --------------------------------------------
-# Devuelve el número de onda complejo (modo plano) para modelar pérdidas por absorción.
+# Calcula el número de onda complejo para cada frecuencia y absorción
 # --------------------------------------------
-
-def wavenumber_complex(freq, absorption_coeff, c=343):
-
+def wavenumber_complex(freq, alpha):
+    c = 343  # Velocidad del sonido en aire [m/s]
     omega = 2 * np.pi * freq
-    alpha = absorption_coeff  # puede ser array o escalar
-    return omega / c * (1 + 1j * alpha)
+    # Número de onda complejo considerando la absorción
+    return omega / c - 1j * alpha
 
 # --------------------------------------------
-# Calcula impedancia superficial aproximada de un revestimiento absorbentenen función de su coeficiente de absorción.
+# Calcula la atenuación adicional empírica
 # --------------------------------------------
-
-def lined_wall_impedance(absorption_coeff, rho0=1.21, c=343):
-
-    R = (1 - absorption_coeff) / (1 + absorption_coeff)
-    Zs = rho0 * c * (1 + R) / (1 - R)
-    return Zs
-
-# --------------------------------------------
-# Calcula la atenuación adicional ΔL por rendijas, según: ΔL(f) = 1.05 * α(f)^1.4 * (P/S)
-# --------------------------------------------
-
 def delta_L_additional(alpha, a, h):
-
-    P = 2 * (a + 2 * h)
-    S = a * 2 * h
-    deltaL = 1.05 * (alpha ** 1.4) * (P / S)
-    return deltaL
+    # Fórmula empírica para atenuación adicional (ajusta según bibliografía)
+    return 1.05 * (alpha ** 1.4) * (a / h)

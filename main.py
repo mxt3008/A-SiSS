@@ -4,10 +4,20 @@
 # --------------------------------------------
 
 import numpy as np
+import os
 from app.simulation.models import SplitterSilencer
 from app.plotting.plots import plot_attenuation_curves
 from app.plotting.graphics import generate_3d_model
 from app.plotting.docs import export_pdf
+
+OUTPUT_DIR = "outputs"
+PLOTS_DIR = os.path.join(OUTPUT_DIR, "plots")
+MODELS_DIR = os.path.join(OUTPUT_DIR, "models")
+PDF_DIR = os.path.join(OUTPUT_DIR, "pdf")
+
+os.makedirs(PLOTS_DIR, exist_ok=True)
+os.makedirs(MODELS_DIR, exist_ok=True)
+os.makedirs(PDF_DIR, exist_ok=True)
 
 def main():
     # Parámetros de entrada
@@ -44,13 +54,15 @@ def main():
     TL_total = TL + delta_L
 
     # Gráfica
-    graph_path = "TL_vs_freq.png"
+    graph_path = os.path.join(PLOTS_DIR, "TL_vs_freq.png")
     plot_attenuation_curves(freq, TL, delta_L, TL_total, graph_path)
 
-    # Modelo 3D
-    img_path, html_path = generate_3d_model(width, H, L, n_baffles, gap=h + 0.02)
+    img_path = os.path.join(MODELS_DIR, "modelo_3d.png")
+    html_path = os.path.join(MODELS_DIR, "modelo_3d.html")
+    generate_3d_model(width, H, L, n_baffles, gap=h + 0.02, img_path=img_path, html_path=html_path)
 
-    export_pdf(S, h, n_espacios, n_baffles, width, img_path, graph_path)
+    pdf_path = os.path.join(PDF_DIR, "reporte_silenciador.pdf")
+    export_pdf(S, h, n_espacios, n_baffles, width, img_path, graph_path, pdf_path)
 
 
 if __name__ == '__main__':

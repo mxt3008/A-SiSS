@@ -5,7 +5,10 @@
 
 from fpdf import FPDF
 
-def export_pdf(S, h, n_espacios, n_baffles, width, img_path, graph_path):
+# --------------------------------------------
+# Exporta un reporte PDF con los resultados y gráficos
+# --------------------------------------------
+def export_pdf(S, h, n_espacios, n_baffles, width, img_path, graph_path, pdf_path):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
@@ -21,5 +24,5 @@ def export_pdf(S, h, n_espacios, n_baffles, width, img_path, graph_path):
     pdf.ln(5)
     pdf.image(graph_path, w=180)
     pdf.ln(5)
-    pdf.image(img_path, w=150)
-    pdf.output("reporte_silenciador.pdf")
+    pdf.image(img_path, w=120)
+    pdf.output(pdf_path)

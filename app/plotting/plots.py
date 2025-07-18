@@ -5,6 +5,9 @@
 
 import matplotlib.pyplot as plt
 
+# --------------------------------------------
+# Genera y guarda la curva de atenuación del silenciador
+# --------------------------------------------
 def plot_attenuation_curves(freq, TL, delta_L, TL_total, output_path="TL_vs_freq.png"):
     fig, ax1 = plt.subplots(figsize=(10, 6))
     ax2 = ax1.twinx()
@@ -19,8 +22,8 @@ def plot_attenuation_curves(freq, TL, delta_L, TL_total, output_path="TL_vs_freq
 
     ax1.tick_params(axis='y', labelcolor='tab:blue')
     ax2.tick_params(axis='y', labelcolor='tab:red')
-    ax1.grid(True)
-    fig.tight_layout()
+
     fig.legend(loc='upper right')
-    plt.savefig(output_path, dpi=300)
-    plt.close()
+    fig.tight_layout()
+    plt.savefig(output_path)
+    plt.close(fig)
