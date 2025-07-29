@@ -5,6 +5,7 @@
 
 import sys
 import os
+from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
@@ -16,14 +17,17 @@ from app.simulation.models import SplitterSilencer
 from app.plotting.plots import plot_attenuation_curves
 from app.plotting.graphics import generate_3d_model
 from app.plotting.docs import export_pdf
+from app.plotting.technical_drawings import generate_technical_drawings
 
 OUTPUT_DIR = "outputs"
 PLOTS_DIR = os.path.join(OUTPUT_DIR, "plots")
 MODELS_DIR = os.path.join(OUTPUT_DIR, "models")
 PDF_DIR = os.path.join(OUTPUT_DIR, "pdf")
+TEMP_DIR = os.path.join(OUTPUT_DIR, "temp")
 os.makedirs(PLOTS_DIR, exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)
 os.makedirs(PDF_DIR, exist_ok=True)
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 # --------------------------------------------
 # Clase principal de la aplicación GUI
@@ -33,7 +37,12 @@ class MainApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("Simulador de Silenciadores Tipo Splitter")
         self.setGeometry(100, 100, 1400, 800)
-        self.interface = GUIInterface(self.simular, self.actualizar_modelo_3d)
+        self.interface = GUIInterface(
+            self.simular, 
+            self.actualizar_modelo_3d, 
+            self.exportar_txt,
+            self.exportar_math_pdf
+        )
         self.setCentralWidget(self.interface)
         self.data = {}
         self.show_dims = True
@@ -50,8 +59,8 @@ class MainApp(QMainWindow):
         material = self.interface.input_material.currentText()
         fmin, fmax = 100, 500
 
-        # Calcula parámetros geométricos y acústicos
-        params = calcular_parametros(Q_m3h, V, H, fmin, fmax, L, material)
+        # Usa la función de cálculo corregida CON el material
+        params = calcular_parametros(Q_m3h, V, H, L, fmin, fmax, material)
         splitter = SplitterSilencer(params["L"], params["width"], params["n_baffles"], params["alpha_interp"])
         TL = splitter.transmission_loss(params["freq"])
         delta_L = splitter.delta_L(params["freq"])
@@ -65,6 +74,15 @@ class MainApp(QMainWindow):
             "graph_path": os.path.join(PLOTS_DIR, "TL_vs_freq.png"),
             "pdf_path": os.path.join(PDF_DIR, "reporte_silenciador.pdf"),
         }
+
+        # Generar planos técnicos
+        technical_drawings_path = generate_technical_drawings(
+            params["L"], params["width"], params["H"], params["n_baffles"], 
+            params["h"] + 0.02, 0.02, 0.005, MODELS_DIR
+        )
+        
+        # Agregar a los datos
+        self.data["technical_drawings_path"] = technical_drawings_path
 
         # Actualiza la gráfica en la GUI
         self.interface.update_plot(params["freq"], TL, delta_L, TL_total)
@@ -105,6 +123,13 @@ class MainApp(QMainWindow):
 
         # Actualiza el modelo 3D
         self.actualizar_modelo_3d('update')
+
+        # Actualizar planos técnicos en la GUI
+        if "technical_drawings_path" in self.data:
+            self.interface.update_technical_drawings(self.data["technical_drawings_path"])
+        
+        # Actualizar fundamentos matemáticos con los parámetros calculados
+        self.interface.update_math_fundamentals(self.data)
 
     # --------------------------------------------
     # Actualiza el modelo 3D interactivo según controles
@@ -153,6 +178,247 @@ class MainApp(QMainWindow):
             self.data["img_path"], self.data["graph_path"], self.data["pdf_path"]
         )
         QMessageBox.information(self, "Éxito", f"PDF exportado en:\n{self.data['pdf_path']}")
+
+    def exportar_txt(self):
+        """Exporta los parámetros a un archivo de texto"""
+        if not self.data:
+            QMessageBox.warning(self, "Advertencia", "Primero realiza una simulación.")
+            return
+            
+        txt_path = os.path.join(OUTPUT_DIR, "parametros_silenciador.txt")
+        
+        with open(txt_path, 'w') as f:
+            f.write("PARÁMETROS DEL SILENCIADOR TIPO SPLITTER\n")
+            f.write("========================================\n\n")
+            f.write(f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n\n")
+            f.write("PARÁMETROS DE ENTRADA:\n")
+            f.write(f"- Caudal: {self.interface.input_Q.value()} m³/h\n")
+            f.write(f"- Velocidad: {self.interface.input_V.value()} m/s\n")
+            f.write(f"- Altura: {self.interface.input_H.value()} m\n")
+            f.write(f"- Longitud: {self.interface.input_L.value()} m\n")
+            f.write(f"- Material: {self.interface.input_material.currentText()}\n\n")
+            f.write("RESULTADOS DEL CÁLCULO:\n")
+            f.write(f"- Área requerida: {self.data['S']:.4f} m²\n")
+            f.write(f"- Separación entre baffles (2h): {2*self.data['h']:.4f} m\n")
+            f.write(f"- Número de rendijas: {self.data['n_espacios']}\n")
+            f.write(f"- Total de baffles: {self.data['n_baffles']}\n")
+            f.write(f"- Ancho total estimado: {self.data['width']:.4f} m\n\n")
+            f.write("DIMENSIONES DEL SILENCIADOR:\n")
+            f.write(f"- Largo total (L1): {self.data['L']:.3f} m\n")
+            f.write(f"- Ancho total (L2): {self.data['width']:.3f} m\n")
+            f.write(f"- Altura (H): {self.data['H']:.3f} m\n")
+            f.write(f"- Espesor de cada baffle: {0.02:.3f} m\n")
+            f.write(f"- Separación entre baffles: {self.data['h'] + 0.02:.3f} m\n\n")
+            f.write("ATENUACIÓN ACÚSTICA:\n")
+            f.write(f"- Rango de frecuencias: {min(self.data['freq']):.0f} - {max(self.data['freq']):.0f} Hz\n")
+            f.write(f"- Atenuación máxima: {max(self.data['TL_total']):.2f} dB\n")
+            
+        QMessageBox.information(self, "Éxito", f"Parámetros exportados en:\n{txt_path}")
+
+    def exportar_math_pdf(self):
+        """Exporta los fundamentos matemáticos a un archivo PDF con ecuaciones LaTeX"""
+        if not self.data:
+            QMessageBox.warning(self, "Advertencia", "Primero realiza una simulación.")
+            return
+        
+        # Verificar si las bibliotecas necesarias están instaladas
+        try:
+            import reportlab
+            import matplotlib
+            from PIL import Image
+        except ImportError:
+            QMessageBox.warning(
+                self, 
+                "Error - Bibliotecas faltantes", 
+                "Para generar el PDF con fundamentos matemáticos, necesitas instalar:\n\n"
+                "pip install reportlab matplotlib pillow\n\n"
+                "Ejecuta este comando en tu terminal y vuelve a intentarlo."
+            )
+            return
+            
+        try:
+            # Usar ReportLab para un PDF avanzado con ecuaciones
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib import colors
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            
+            # Generar imágenes de ecuaciones con matplotlib
+            import matplotlib.pyplot as plt
+            from matplotlib import rcParams
+            import io
+            from PIL import Image as PILImage
+            
+            # Configurar matplotlib para LaTeX bonito
+            rcParams['mathtext.fontset'] = 'cm'
+            rcParams['font.family'] = 'serif'
+            
+            pdf_path = os.path.join(PDF_DIR, "fundamentos_matematicos.pdf")
+            
+            # Crear documento y estilos
+            doc = SimpleDocTemplate(pdf_path, pagesize=A4)
+            styles = getSampleStyleSheet()
+            
+            # Crear estilos personalizados
+            title_style = ParagraphStyle(
+                'TitleStyle', 
+                parent=styles['Heading1'],
+                fontSize=16,
+                alignment=1,  # Centrado
+                spaceAfter=20
+            )
+            
+            heading1_style = ParagraphStyle(
+                'Heading1Style',
+                parent=styles['Heading1'],
+                fontSize=14,
+                spaceAfter=10
+            )
+            
+            heading2_style = ParagraphStyle(
+                'Heading2Style',
+                parent=styles['Heading2'],
+                fontSize=12,
+                textColor=colors.blue,
+                spaceAfter=5
+            )
+            
+            normal_style = ParagraphStyle(
+                'NormalStyle',
+                parent=styles['Normal'],
+                fontSize=10,
+                spaceAfter=8
+            )
+            
+            formula_style = ParagraphStyle(
+                'FormulaStyle',
+                parent=styles['Normal'],
+                alignment=1,  # Centrado
+                spaceAfter=10
+            )
+            
+            # Función para generar imagen de fórmula LaTeX
+            def latex_to_image(formula, filename, fontsize=14):
+                fig = plt.figure(figsize=(8, 1))
+                fig.text(0.5, 0.5, f"${formula}$", fontsize=fontsize, ha='center', va='center')
+                
+                buffer = io.BytesIO()
+                plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight', transparent=True)
+                buffer.seek(0)
+                
+                img_path = os.path.join(TEMP_DIR, filename)
+                if not os.path.exists(TEMP_DIR):
+                    os.makedirs(TEMP_DIR)
+                    
+                img = PILImage.open(buffer)
+                img.save(img_path)
+                plt.close(fig)
+                
+                return img_path
+            
+            # Crear contenido
+            story = []
+            
+            # Título principal
+            story.append(Paragraph("FUNDAMENTOS MATEMÁTICOS Y METODOLOGÍA DE CÁLCULO", title_style))
+            story.append(Spacer(1, 0.2*inch))
+            
+            # 1. Parámetros Fundamentales
+            story.append(Paragraph("1. Parámetros Fundamentales del Diseño", heading1_style))
+            
+            # 1.1 Velocidad del sonido
+            story.append(Paragraph("1.1 Velocidad del sonido en el aire", heading2_style))
+            formula_img = latex_to_image("c = 343 \\ \\text{m/s}", "formula_c.png")
+            story.append(Image(formula_img, width=3*inch, height=0.7*inch))
+            story.append(Paragraph("La velocidad del sonido en aire a temperatura ambiente (20°C) y presión atmosférica estándar.", normal_style))
+            
+            # 1.2 Conversión de caudal
+            story.append(Paragraph("1.2 Conversión de caudal", heading2_style))
+            formula_img = latex_to_image("Q \\ [\\text{m}^3/\\text{s}] = \\frac{Q \\ [\\text{m}^3/\\text{h}]}{3600}", "formula_q.png")
+            story.append(Image(formula_img, width=4*inch, height=inch))
+            story.append(Paragraph(f"Valor actual: Q = {self.data['Q']:.4f} m³/s (equivalente a {self.data['Q']*3600:.1f} m³/h)", normal_style))
+            
+            # 1.3 Área de paso
+            story.append(Paragraph("1.3 Área de paso requerida", heading2_style))
+            formula_img = latex_to_image("S = \\frac{Q}{V}", "formula_s.png")
+            story.append(Image(formula_img, width=2*inch, height=0.7*inch))
+            story.append(Paragraph(f"Valor calculado: S = {self.data['S']:.4f} m²", normal_style))
+            
+            # 2. Dimensionamiento de Baffles
+            story.append(Paragraph("2. Dimensionamiento de Baffles", heading1_style))
+            
+            # 2.1 Separación entre baffles
+            story.append(Paragraph("2.1 Separación entre baffles", heading2_style))
+            formula_img = latex_to_image("h = \\frac{\\lambda_{max}}{8} = \\frac{c}{8·f_{max}}", "formula_h.png")
+            story.append(Image(formula_img, width=3*inch, height=0.7*inch))
+            story.append(Paragraph(f"Valor calculado: h = {self.data['h']:.4f} m", normal_style))
+            story.append(Paragraph(f"Separación total (2h): 2h = {2*self.data['h']:.4f} m", normal_style))
+            story.append(Paragraph("Donde λ es la longitud de onda máxima en el silenciador.", normal_style))
+            
+            # 2.2 Número de espacios/rendijas necesarios
+            story.append(Paragraph("2.2 Número de espacios/rendijas necesarios", heading2_style))
+            formula_img = latex_to_image("n_espacios = \\lceil \\frac{S}{H · 2h} \\rceil", "formula_n_espacios.png")
+            story.append(Image(formula_img, width=3*inch, height=0.7*inch))
+            story.append(Paragraph(f"Valor calculado: n_espacios = {self.data['n_espacios']}", normal_style))
+            story.append(Paragraph("Donde ceil() es la función techo que redondea al entero superior.", normal_style))
+            
+            # 2.3 Número de baffles
+            story.append(Paragraph("2.3 Número de baffles", heading2_style))
+            formula_img = latex_to_image("n_baffles = n_espacios - 1", "formula_n_baffles.png")
+            story.append(Image(formula_img, width=3*inch, height=0.7*inch))
+            story.append(Paragraph(f"Valor calculado: n_baffles = {self.data['n_baffles']}", normal_style))
+            
+            # 3. Dimensiones del Silenciador
+            story.append(Paragraph("3. Dimensiones del Silenciador", heading1_style))
+            
+            # 3.1 Ancho interior necesario
+            story.append(Paragraph("3.1 Ancho interior necesario", heading2_style))
+            formula_img = latex_to_image("interior_width = n_baffles · t_baffle + n_espacios · 2h", "formula_interior_width.png")
+            story.append(Image(formula_img, width=4*inch, height=0.7*inch))
+            story.append(Paragraph(f"Valor calculado: interior_width = {self.data['interior_width']:.4f} m", normal_style))
+            
+            # 3.2 Ancho total del silenciador
+            story.append(Paragraph("3.2 Ancho total del silenciador", heading2_style))
+            formula_img = latex_to_image("width = interior_width + 2 · t_pared", "formula_width.png")
+            story.append(Image(formula_img, width=3*inch, height=0.7*inch))
+            story.append(Paragraph(f"Valor calculado: width = {self.data['width']:.4f} m", normal_style))
+            
+            # 4. Cálculos de Atenuación Acústica
+            story.append(Paragraph("4. Cálculos de Atenuación Acústica", heading1_style))
+            
+            # 4.1 Pérdida por Transmisión (TL)
+            story.append(Paragraph("4.1 Pérdida por Transmisión (TL)", heading2_style))
+            formula_img = latex_to_image("TL = 10·log(e^(2·α·L))", "formula_tl.png")
+            story.append(Image(formula_img, width=3*inch, height=0.7*inch))
+            story.append(Paragraph("Donde α es el coeficiente de absorción del material.", normal_style))
+            
+            # 4.2 Atenuación adicional por efectos de borde
+            story.append(Paragraph("4.2 Atenuación adicional por efectos de borde", heading2_style))
+            formula_img = latex_to_image("ΔL = 1.05·(α^1.4)·(a/h)", "formula_delta_L.png")
+            story.append(Image(formula_img, width=3*inch, height=0.7*inch))
+            story.append(Paragraph("Donde a es la altura del silenciador.", normal_style))
+            
+            # 4.3 Atenuación total
+            story.append(Paragraph("4.3 Atenuación total", heading2_style))
+            formula_img = latex_to_image("Atenuación total = TL + ΔL", "formula_atenuacion_total.png")
+            story.append(Image(formula_img, width=3*inch, height=0.7*inch))
+            story.append(Paragraph(f"Atenuación máxima calculada: {max(self.data['TL_total']):.2f} dB", normal_style))
+            
+            # 5. Referencias Bibliográficas
+            story.append(Paragraph("5. Referencias Bibliográficas", heading1_style))
+            
+            story.append(Paragraph("• Bies, D.A. y Hansen, C.H. (2009). Engineering Noise Control: Theory and Practice.", normal_style))
+            story.append(Paragraph("• Ingard, U. (2009). Noise Reduction Analysis.", normal_style))
+            story.append(Paragraph("• Munjal, M.L. (2014). Acoustics of Ducts and Mufflers.", normal_style))
+            story.append(Paragraph("• Ver, I.L. y Beranek, L.L. (2005). Noise and Vibration Control Engineering.", normal_style))
+            
+            # Construir documento PDF
+            doc.build(story)
+            QMessageBox.information(self, "Éxito", f"Fundamentos matemáticos exportados en:\n{pdf_path}")
+        
+        except ImportError:
+            QMessageBox.warning(self, "Error", "Necesitas instalar las librerías reportlab, matplotlib y Pillow:\npip install reportlab matplotlib Pillow")
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
