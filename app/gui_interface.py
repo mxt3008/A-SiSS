@@ -4,20 +4,19 @@
 # --------------------------------------------
 
 import os
-import io
-import base64
-import matplotlib.pyplot as plt
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QPushButton, QLabel,
-    QFormLayout, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QCheckBox, QColorDialog, QScrollArea
-)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, QDoubleSpinBox, 
+                           QComboBox, QPushButton, QFormLayout, QTabWidget, QTextEdit, 
+                           QScrollArea, QColorDialog, QGroupBox)
+from PyQt5.QtGui import QFont, QPixmap, QIcon
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from matplotlib.image import imread
-from matplotlib import rcParams
 from pyvistaqt import QtInteractor
+import numpy as np
+from matplotlib.image import imread
+import io
+import base64
 
 # --------------------------------------------
 # Clase de la interfaz gráfica principal
@@ -30,155 +29,289 @@ class GUIInterface(QWidget):
         
         # Layout principal horizontal
         main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(15, 15, 15, 15)  # Margen exterior para toda la UI
         
         # Panel izquierdo (30%)
-        left_panel = QVBoxLayout()
+        left_panel = QWidget()
+        left_panel_layout = QVBoxLayout(left_panel)
+        left_panel_layout.setContentsMargins(10, 10, 10, 10)
+        left_panel_layout.setSpacing(15)
         
-        # Panel superior: formulario de parámetros
-        form = QFormLayout()
-        self.input_Q = QSpinBox(); self.input_Q.setRange(100, 100000); self.input_Q.setValue(10000)
-        self.input_V = QDoubleSpinBox(); self.input_V.setRange(1, 100); self.input_V.setValue(12)
-        self.input_H = QDoubleSpinBox(); self.input_H.setRange(0.1, 2); self.input_H.setValue(0.3)
-        self.input_L = QDoubleSpinBox(); self.input_L.setRange(0.5, 10); self.input_L.setValue(1.7)
-        self.input_material = QComboBox(); self.input_material.addItems(['lana50', 'lana70', 'lana100'])
-        form.addRow("Caudal [m3/h]:", self.input_Q)
-        form.addRow("Velocidad [m/s]:", self.input_V)
-        form.addRow("Altura [m]:", self.input_H)
-        form.addRow("Longitud [m]:", self.input_L)
-        form.addRow("Material:", self.input_material)
+        # Estilo para los grupos
+        group_style = """
+        QGroupBox {
+            font-weight: bold;
+            border: 1px solid #3498DB;
+            border-radius: 5px;
+            margin-top: 1em;
+            background-color: #F8F9FA;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 5px 0 5px;
+            background-color: #3498DB;
+            color: white;
+        }
+        """
         
-        # Selector de color
+        # Mensaje de bienvenida con logo
+        welcome_group = QGroupBox("Bienvenido al Simulador de Silenciadores")
+        welcome_group.setStyleSheet(group_style)
+        welcome_layout = QVBoxLayout(welcome_group)
+        
+        # Logo o imagen representativa (si existe)
+        logo_label = QLabel()
+        logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo.png")
+        if os.path.exists(logo_path):
+            logo_pixmap = QPixmap(logo_path)
+            logo_label.setPixmap(logo_pixmap.scaled(300, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            logo_label.setAlignment(Qt.AlignCenter)
+            welcome_layout.addWidget(logo_label)
+        
+        # Texto de bienvenida
+        welcome_text = QLabel(
+            "<p style='text-align:center'><b>A-SiSS: Herramienta de Análisis y Diseño</b></p>"
+            "<p>Esta aplicación permite simular el comportamiento acústico de silenciadores "
+            "tipo splitter para sistemas de ventilación y climatización.</p>"
+            "<p><b>Instrucciones:</b></p>"
+            "<ol>"
+            "<li>Ingrese los parámetros básicos de diseño</li>"
+            "<li>Haga clic en 'Simular' para calcular el diseño óptimo</li>"
+            "<li>Revise los resultados en las pestañas de análisis</li>"
+            "</ol>"
+            "<p>Desarrollado para el curso de Acústica - 2025-1<br>"
+            "PUCP - 2023</p>"
+        )
+        welcome_text.setWordWrap(True)
+        welcome_layout.addWidget(welcome_text)
+        
+        left_panel_layout.addWidget(welcome_group)
+        
+        # Grupo de parámetros de entrada con mejor estilo
+        params_group = QGroupBox("Parámetros de Entrada")
+        params_group.setStyleSheet(group_style)
+        form = QFormLayout(params_group)
+        form.setSpacing(10)
+        form.setContentsMargins(15, 20, 15, 15)
+        
+        # Estilo para labels en el formulario
+        label_style = """
+        QLabel {
+            font-weight: bold;
+            color: #2C3E50;
+        }
+        """
+        
+        # Estilo para campos de entrada
+        input_style = """
+        QSpinBox, QDoubleSpinBox, QComboBox {
+            border: 1px solid #BDC3C7;
+            border-radius: 3px;
+            padding: 4px;
+            background-color: #FFFFFF;
+            selection-background-color: #3498DB;
+            min-width: 100px;
+        }
+        QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+            border: 1px solid #3498DB;
+        }
+        """
+        
+        # Crear y estilizar widgets de entrada
+        self.input_Q = QSpinBox()
+        self.input_Q.setRange(100, 100000)
+        self.input_Q.setValue(10000)
+        self.input_Q.setStyleSheet(input_style)
+        q_label = QLabel("Caudal [m³/h]:")
+        q_label.setStyleSheet(label_style)
+        q_tooltip = "Caudal de aire que pasa por el silenciador (metros cúbicos por hora)"
+        q_label.setToolTip(q_tooltip)
+        self.input_Q.setToolTip(q_tooltip)
+        
+        self.input_V = QDoubleSpinBox()
+        self.input_V.setRange(1, 100)
+        self.input_V.setValue(12)
+        self.input_V.setStyleSheet(input_style)
+        v_label = QLabel("Velocidad [m/s]:")
+        v_label.setStyleSheet(label_style)
+        v_tooltip = "Velocidad de paso del aire (metros por segundo)"
+        v_label.setToolTip(v_tooltip)
+        self.input_V.setToolTip(v_tooltip)
+        
+        self.input_H = QDoubleSpinBox()
+        self.input_H.setRange(0.1, 2)
+        self.input_H.setValue(0.3)
+        self.input_H.setStyleSheet(input_style)
+        h_label = QLabel("Altura [m]:")
+        h_label.setStyleSheet(label_style)
+        h_tooltip = "Altura del silenciador (metros)"
+        h_label.setToolTip(h_tooltip)
+        self.input_H.setToolTip(h_tooltip)
+        
+        self.input_L = QDoubleSpinBox()
+        self.input_L.setRange(0.5, 10)
+        self.input_L.setValue(1.7)
+        self.input_L.setStyleSheet(input_style)
+        l_label = QLabel("Longitud [m]:")
+        l_label.setStyleSheet(label_style)
+        l_tooltip = "Longitud del silenciador (metros)"
+        l_label.setToolTip(l_tooltip)
+        self.input_L.setToolTip(l_tooltip)
+        
+        self.input_material = QComboBox()
+        self.input_material.addItems(['lana50', 'lana70', 'lana100'])
+        self.input_material.setStyleSheet(input_style)
+        material_label = QLabel("Material:")
+        material_label.setStyleSheet(label_style)
+        material_tooltip = "Material absorbente de los baffles"
+        material_label.setToolTip(material_tooltip)
+        self.input_material.setToolTip(material_tooltip)
+        
+        form.addRow(q_label, self.input_Q)
+        form.addRow(v_label, self.input_V)
+        form.addRow(h_label, self.input_H)
+        form.addRow(l_label, self.input_L)
+        form.addRow(material_label, self.input_material)
+        
+        # Selector de color con mejor estilo
         self.baffle_color = "#C0C0C0"  # Gris metálico por defecto
         self.btn_color = QPushButton("Color de baffles")
-        self.btn_color.setStyleSheet(f"background-color: {self.baffle_color}")
-        form.addRow("Color de baffles:", self.btn_color)
+        color_tooltip = "Seleccione el color para los baffles en el modelo 3D"
+        self.btn_color.setToolTip(color_tooltip)
+        self.btn_color.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {self.baffle_color};
+                border: 1px solid #BDC3C7;
+                border-radius: 3px;
+                padding: 4px 10px;
+                min-width: 100px;
+            }}
+            QPushButton:hover {{
+                background-color: {self.baffle_color};
+                border: 1px solid #3498DB;
+            }}
+        """)
+        color_label = QLabel("Color de baffles:")
+        color_label.setStyleSheet(label_style)
+        color_label.setToolTip(color_tooltip)
+        form.addRow(color_label, self.btn_color)
         self.btn_color.clicked.connect(self.select_baffle_color)
         
+        left_panel_layout.addWidget(params_group)
+        
+        # Botón de simulación con mejor estilo
+        button_group = QGroupBox("Acciones")
+        button_group.setStyleSheet(group_style)
+        button_layout = QVBoxLayout(button_group)
+        
         self.btn_simulate = QPushButton("Simular")
-        form.addRow(self.btn_simulate)
+        self.btn_simulate.setStyleSheet("""
+            QPushButton {
+                background-color: #3498DB;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+                min-height: 35px;
+            }
+            QPushButton:hover {
+                background-color: #2980B9;
+            }
+            QPushButton:pressed {
+                background-color: #1F618D;
+            }
+        """)
+        self.btn_simulate.setIcon(QIcon.fromTheme("system-run"))
+        button_layout.addWidget(self.btn_simulate)
         
-        # Botón para exportar parámetros
-        self.btn_export = QPushButton("Exportar Parámetros (.txt)")
-        form.addRow(self.btn_export)
+        left_panel_layout.addWidget(button_group)
         
-        left_panel.addLayout(form)
+        # Agregar espacio flexible al final
+        left_panel_layout.addStretch(1)
         
-        # Panel inferior: resumen textual
-        self.summary_box = QTextEdit()
-        self.summary_box.setReadOnly(True)
-        # Fuente más legible
-        font = QFont("Consolas", 10)
-        self.summary_box.setFont(font)
-        left_panel.addWidget(QLabel("Resumen de parámetros y resultados:"))
-        left_panel.addWidget(self.summary_box)
-        main_layout.addLayout(left_panel, 3)  # 30%
-
         # Panel derecho (70%)
-        right_panel = QVBoxLayout()
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(10, 10, 10, 10)
+        
+        # Pestañas para la visualización de resultados
         self.tabs = QTabWidget()
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane { 
+                border: 1px solid #BDC3C7;
+                border-radius: 3px;
+                background: white;
+            }
+            QTabBar::tab {
+                background: #ECF0F1;
+                border: 1px solid #BDC3C7;
+                padding: 8px 15px;
+                margin-right: 2px;
+                border-top-left-radius: 3px;
+                border-top-right-radius: 3px;
+            }
+            QTabBar::tab:selected {
+                background: #3498DB;
+                color: white;
+                border-bottom-color: transparent;
+            }
+            QTabBar::tab:hover:!selected {
+                background: #D6EAF8;
+            }
+        """)
         
-        # Pestaña 1: Gráfica
-        self.plot_canvas = FigureCanvas(Figure())
-        self.tabs.addTab(self.plot_canvas, "Gráfica")
+        # Pestaña para el modelo 3D
+        self.model_3d = QWidget()
+        model_layout = QVBoxLayout(self.model_3d)
         
-        # Pestaña 2: Modelo 3D
-        self.viewer = QtInteractor(self)
-        controls_layout = QHBoxLayout()
-        self.btn_front = QPushButton("Vista Frontal")
-        self.btn_side = QPushButton("Vista Lateral")
-        self.btn_iso = QPushButton("Vista Isométrica")
-        self.chk_show_dims = QCheckBox("Mostrar medidas")
-        self.chk_show_dims.setChecked(True)
-        controls_layout.addWidget(self.btn_front)
-        controls_layout.addWidget(self.btn_side)
-        controls_layout.addWidget(self.btn_iso)
-        controls_layout.addWidget(self.chk_show_dims)
+        # PyVista Qt interactor para visualización 3D
+        self.plotter = QtInteractor(self.model_3d)
+        model_layout.addWidget(self.plotter)
         
-        model3d_widget = QWidget()
-        model3d_layout = QVBoxLayout(model3d_widget)
-        model3d_layout.addLayout(controls_layout)
-        
-        # Contenedor horizontal para modelo 3D y resumen de dimensiones
-        model_content_layout = QHBoxLayout()
-        
-        # Viewer 3D (70% del espacio)
-        model_content_layout.addWidget(self.viewer.interactor, 7)
-        
-        # Panel de dimensiones (30% del espacio)
-        dimensions_panel = QVBoxLayout()
-        dimensions_label = QLabel("Dimensiones del silenciador:")
-        dimensions_label.setAlignment(Qt.AlignTop)
-        font_label = QFont("Arial", 11, QFont.Bold)
-        dimensions_label.setFont(font_label)
-        
+        # Añadir resumen de dimensiones 3D (primera pestaña perdida)
         self.summary_3d_box = QTextEdit()
         self.summary_3d_box.setReadOnly(True)
-        self.summary_3d_box.setMaximumWidth(300)
-        self.summary_3d_box.setMaximumHeight(400)
-        # Fuente más grande y legible para las dimensiones
-        font_3d = QFont("Consolas", 11)
-        self.summary_3d_box.setFont(font_3d)
+        model_layout.addWidget(self.summary_3d_box)
         
-        dimensions_panel.addWidget(dimensions_label)
-        dimensions_panel.addWidget(self.summary_3d_box)
-        dimensions_panel.addStretch()
+        self.tabs.addTab(self.model_3d, "Modelo 3D")
         
-        model_content_layout.addLayout(dimensions_panel, 3)
-        model3d_layout.addLayout(model_content_layout)
+        # Pestaña para gráficas de TL
+        self.graph_tab = QWidget()
+        graph_layout = QVBoxLayout(self.graph_tab)
         
-        self.tabs.addTab(model3d_widget, "Modelo 3D")
+        # Canvas matplotlib para gráficas
+        self.fig = plt.figure(figsize=(10, 6), dpi=100)
+        self.canvas = FigureCanvas(self.fig)  # Este es el nombre correcto que debemos usar
+        graph_layout.addWidget(self.canvas)
         
-        # Pestaña 3: Planos Técnicos
-        self.technical_canvas = FigureCanvas(Figure(figsize=(16, 12)))
-        self.tabs.addTab(self.technical_canvas, "Planos Técnicos")
+        # Añadir resumen de datos acústicos debajo del gráfico
+        self.summary_box = QTextEdit()
+        self.summary_box.setReadOnly(True)
+        graph_layout.addWidget(self.summary_box)
         
-        # Pestaña 4: Fundamentos Matemáticos
-        self.math_widget = QWidget()
-        math_layout = QVBoxLayout(self.math_widget)
+        self.tabs.addTab(self.graph_tab, "Atenuación")
         
-        # Crear un scroll area para contener todo el contenido matemático
-        math_scroll = QScrollArea()
-        math_scroll.setWidgetResizable(True)
-        math_content = QWidget()
-        math_content_layout = QVBoxLayout(math_content)
+        # Pestaña para planos técnicos (segunda pestaña perdida)
+        self.tech_tab = QWidget()
+        tech_layout = QVBoxLayout(self.tech_tab)
         
-        # Título principal
-        title_label = QLabel("FUNDAMENTOS MATEMÁTICOS Y METODOLOGÍA DE CÁLCULO")
-        title_font = QFont("Arial", 14, QFont.Bold)
-        title_label.setFont(title_font)
-        title_label.setAlignment(Qt.AlignCenter)
-        math_content_layout.addWidget(title_label)
+        self.technical_fig = Figure(figsize=(10, 6), dpi=100)
+        self.technical_canvas = FigureCanvas(self.technical_fig)
+        tech_layout.addWidget(self.technical_canvas)
         
-        # Contenedor para el texto matemático con formato
-        self.math_text = QTextEdit()
-        self.math_text.setReadOnly(True)
-        math_font = QFont("Cambria", 11)
-        self.math_text.setFont(math_font)
-        math_content_layout.addWidget(self.math_text)
+        self.tabs.addTab(self.tech_tab, "Planos Técnicos")
         
-        # Botón para exportar matemática como PDF
-        self.btn_export_math = QPushButton("Exportar fundamentos matemáticos (PDF)")
-        math_content_layout.addWidget(self.btn_export_math)
+        # Agregar tabs al panel derecho
+        right_layout.addWidget(self.tabs)
         
-        # Configurar el scroll area
-        math_scroll.setWidget(math_content)
-        math_layout.addWidget(math_scroll)
+        # Añadir panel izquierdo y derecho al layout principal
+        main_layout.addWidget(left_panel, 30)  # 30% del ancho
+        main_layout.addWidget(right_panel, 70)  # 70% del ancho
         
-        self.tabs.addTab(self.math_widget, "Fundamentos Matemáticos")
-        
-        right_panel.addWidget(self.tabs)
-        main_layout.addLayout(right_panel, 7)  # 70%
-
-        self.setLayout(main_layout)
-
-        # Conectar botones a callbacks
-        self.btn_simulate.clicked.connect(simulate_callback)
-        self.btn_front.clicked.connect(lambda: update_3d_callback('front'))
-        self.btn_side.clicked.connect(lambda: update_3d_callback('side'))
-        self.btn_iso.clicked.connect(lambda: update_3d_callback('iso'))
-        self.chk_show_dims.stateChanged.connect(lambda: update_3d_callback('dims'))
-        self.btn_export.clicked.connect(export_txt_callback)
-        self.btn_export_math.clicked.connect(export_math_callback)
+        # Conectar botón de simulación con su callback
+        self.btn_simulate.clicked.connect(self._callbacks[0])
 
     # --------------------------------------------
     # Selector de color para los baffles
@@ -187,15 +320,27 @@ class GUIInterface(QWidget):
         color = QColorDialog.getColor()
         if color.isValid():
             self.baffle_color = color.name()
-            self.btn_color.setStyleSheet(f"background-color: {self.baffle_color}")
+            self.btn_color.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {self.baffle_color};
+                    border: 1px solid #BDC3C7;
+                    border-radius: 3px;
+                    padding: 4px 10px;
+                    min-width: 100px;
+                }}
+                QPushButton:hover {{
+                    background-color: {self.baffle_color};
+                    border: 1px solid #3498DB;
+                }}
+            """)
 
     # --------------------------------------------
     # Actualiza la gráfica en la pestaña correspondiente
     # --------------------------------------------
     def update_plot(self, freq, TL, delta_L, TL_total):
-        fig = self.plot_canvas.figure
-        fig.clear()
-        ax1 = fig.add_subplot(111)
+        # Usar self.canvas en lugar de self.plot_canvas
+        self.fig.clear()
+        ax1 = self.fig.add_subplot(111)
         ax2 = ax1.twinx()
         ax1.plot(freq, TL, label='TL(f)', color='tab:blue')
         ax2.plot(freq, delta_L, label='ΔL(f)', color='tab:red', linestyle='--')
@@ -205,10 +350,10 @@ class GUIInterface(QWidget):
         ax2.set_ylabel("Atenuación adicional ΔL [dB]", color='tab:red')
         ax1.tick_params(axis='y', labelcolor='tab:blue')
         ax2.tick_params(axis='y', labelcolor='tab:red')
-        ax1.grid(True, alpha=0.3, linestyle='--')  # Agregar grid
-        fig.legend(loc='upper right')
-        fig.tight_layout()
-        self.plot_canvas.draw()
+        ax1.grid(True, alpha=0.3, linestyle='--')
+        self.fig.legend(loc='upper right')
+        self.fig.tight_layout()
+        self.canvas.draw()  # También aquí usar self.canvas
 
     # --------------------------------------------
     # Actualiza el resumen textual de parámetros/resultados
@@ -277,7 +422,11 @@ class GUIInterface(QWidget):
             math_scroll.setWidget(math_content)
             math_layout.addWidget(math_scroll)
             
+            # Importante: añadir la pestaña al TabWidget
             self.tabs.addTab(self.math_widget, "Fundamentos Matemáticos")
+            
+            # Conectar el botón de exportar PDF
+            self.btn_export_math.clicked.connect(self._callbacks[3])
         
         # Importar librerías necesarias para generar imágenes LaTeX
         import matplotlib.pyplot as plt
@@ -290,12 +439,11 @@ class GUIInterface(QWidget):
         rcParams['font.family'] = 'serif'
         
         # Función para convertir ecuaciones LaTeX a imágenes base64 embebidas en HTML
-        def latex_to_html(formula, fontsize=10):  # Cambiado de 14 a 10
+        def latex_to_html(formula, fontsize=10):  # Tamaño reducido
             fig = plt.figure(figsize=(0.01, 0.01))
             fig.text(0, 0, f"${formula}$", fontsize=fontsize)
             
             buffer = io.BytesIO()
-            # Reducimos DPI y padding para imágenes más compactas
             plt.savefig(buffer, format='png', dpi=200, bbox_inches='tight', pad_inches=0.03, transparent=True)
             buffer.seek(0)
             img_str = base64.b64encode(buffer.read()).decode('utf-8')
@@ -320,13 +468,14 @@ class GUIInterface(QWidget):
         atenuacion_adicional = latex_to_html("\\Delta L = 1.05 \\cdot \\alpha^{1.4} \\cdot \\frac{a}{h}")
         atenuacion_total = latex_to_html("\\text{Atenuación total} = TL + \\Delta L")
         
-        # Ahora usar las variables con las imágenes generadas en el HTML
+        # El resto del código HTML para las fórmulas
         html_content = f"""
         <style>
             h2 {{ color: #2C3E50; margin-top: 20px; margin-bottom: 10px; }}
             h3 {{ color: #3498DB; margin-top: 15px; margin-bottom: 5px; }}
             .formula {{ background-color: #F8F9FA; padding: 12px; margin: 10px 0; 
                        border-left: 3px solid #3498DB; text-align: center; }}
+            .formula img {{ max-width: 80%; }}
             .explanation {{ margin-left: 15px; margin-bottom: 15px; }}
             .section {{ margin-top: 25px; }}
             .subsection {{ margin-top: 15px; }}
@@ -386,8 +535,6 @@ class GUIInterface(QWidget):
                 c = Velocidad del sonido [m/s]<br>
                 f<sub>max</sub> = Frecuencia máxima de diseño [Hz]<br>
                 λ<sub>max</sub> = Longitud de onda correspondiente a la frecuencia máxima [m]<br><br>
-                Este cálculo se basa en el criterio de que la separación entre baffles debe ser menor que λ/4,
-                donde λ es la longitud de onda correspondiente a la frecuencia máxima de diseño.<br><br>
                 <strong>Valor calculado:</strong> h = {params["h"]:.4f} m<br>
                 <strong>Separación total (2h):</strong> 2h = {2*params["h"]:.4f} m
             </div>
@@ -529,6 +676,7 @@ class GUIInterface(QWidget):
         </div>
         """
         
+        # Actualizar el contenido HTML
         self.math_text.setHtml(html_content)
         
         # Conectar el botón de exportar si aún no está conectado

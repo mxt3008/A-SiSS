@@ -51,7 +51,8 @@ class MainApp(QMainWindow):
     # Ejecuta la simulación y actualiza la GUI
     # --------------------------------------------
     def simular(self):
-        # Lee parámetros desde la interfaz
+        """Realiza la simulación del silenciador a partir de los parámetros ingresados"""
+        # Obtener valores de entrada
         Q_m3h = self.interface.input_Q.value()
         V = self.interface.input_V.value()
         H = self.interface.input_H.value()
@@ -123,41 +124,57 @@ class MainApp(QMainWindow):
 
         # Actualiza el modelo 3D
         self.actualizar_modelo_3d('update')
-
-        # Actualizar planos técnicos en la GUI
+        
+        # Actualizar las gráficas
+        self.interface.update_plot(params["freq"], TL, delta_L, TL_total)
+        
+        # Actualizar el resumen de atenuación
+        self.interface.update_summary(resumen)
+        
+        # Actualizar los planos técnicos
         if "technical_drawings_path" in self.data:
             self.interface.update_technical_drawings(self.data["technical_drawings_path"])
         
-        # Actualizar fundamentos matemáticos con los parámetros calculados
+        # ASEGURARSE de llamar a la actualización de fundamentos matemáticos
+        # con todos los parámetros correctos
         self.interface.update_math_fundamentals(self.data)
+        
+        # Mostrar la pestaña de modelo 3D como predeterminada al terminar
+        self.interface.tabs.setCurrentIndex(0)  # Mostrar la pestaña del modelo 3D
 
     # --------------------------------------------
     # Actualiza el modelo 3D interactivo según controles
     # --------------------------------------------
-    def actualizar_modelo_3d(self, action):
+    def actualizar_modelo_3d(self, event_type='update'):
+        """Actualiza el modelo 3D del silenciador"""
         if not self.data:
             return
-        viewer = self.interface.viewer
-        viewer.clear()
-        # Genera el modelo 3D en el viewer embebido, pasando el color seleccionado
+        
+        # Limpiar visualizador existente
+        plotter = self.interface.plotter  # Usar plotter en lugar de viewer
+        plotter.clear()
+        
+        # Obtener datos del silenciador
+        L = self.data['L']
+        width = self.data['width']
+        H = self.data['H']
+        n_baffles = self.data['n_baffles']
+        h = self.data['h']
+        baffle_color = self.interface.baffle_color
+        
+        # Generar modelo 3D
         generate_3d_model(
-            self.data["L"], self.data["width"], self.data["H"], self.data["n_baffles"],
-            gap=self.data["h"] + 0.02, show_dims=self.show_dims, plotter=viewer,
-            baffle_color=self.interface.baffle_color
+            L, width, H, n_baffles, h,
+            plotter=plotter,  # Usar plotter en lugar de viewer
+            baffle_color=baffle_color
         )
-        # Control de cámara
-        if action == 'front':
-            viewer.view_xy()
-        elif action == 'side':
-            viewer.view_yz()
-        elif action == 'iso':
-            viewer.view_isometric()
-        elif action == 'dims':
-            self.show_dims = self.interface.chk_show_dims.isChecked()
-            self.actualizar_modelo_3d('update')
-        elif action == 'update':
-            # Vista por defecto: isométrica
-            viewer.view_isometric()
+        
+        # Actualizar la vista
+        plotter.reset_camera()
+        plotter.update()
+        
+        # Actualizar resumen de dimensiones
+        self.update_3d_summary()
 
     # --------------------------------------------
     # Exporta el reporte PDF (puedes agregar un botón para esto)
@@ -419,6 +436,35 @@ class MainApp(QMainWindow):
         
         except ImportError:
             QMessageBox.warning(self, "Error", "Necesitas instalar las librerías reportlab, matplotlib y Pillow:\npip install reportlab matplotlib Pillow")
+
+    def update_3d_summary(self):
+        """Actualiza el resumen de dimensiones 3D"""
+        if not self.data:
+            return
+            
+        baffle_thickness = 0.02  # m
+        wall_thickness = 0.02  # m
+        
+        summary_3d = (
+            f"DIMENSIONES DEL SILENCIADOR:\n\n"
+            f"• Longitud total: {self.data['L']:.2f} m\n"
+            f"• Altura total: {self.data['H']:.2f} m\n"
+            f"• Ancho total: {self.data['width']:.2f} m\n\n"
+            f"DATOS DE LOS BAFFLES:\n\n"
+            f"• Número de baffles: {self.data['n_baffles']}\n"
+            f"• Espesor de cada baffle: {baffle_thickness:.2f} m\n"
+            f"• Separación entre baffles: {self.data['h']*2:.3f} m\n"
+            f"• Material absorbente: {self.data['material']}\n\n"
+            f"RENDIJAS:\n\n"
+            f"• Número de rendijas: {self.data['n_espacios']}\n"
+            f"• Ancho de cada rendija: {self.data['h']*2:.3f} m\n\n"
+            f"CARACTERÍSTICAS CONSTRUCTIVAS:\n\n"
+            f"• Espesor de las paredes: {wall_thickness:.2f} m\n"
+            f"• Área de paso: {self.data['S']:.3f} m²\n"
+        )
+        
+        # Actualizar el cuadro de resumen en la interfaz
+        self.interface.update_3d_summary(summary_3d)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

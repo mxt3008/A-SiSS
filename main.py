@@ -3,26 +3,30 @@
 # Script principal para simular silenciadores tipo splitter
 # --------------------------------------------
 
-import numpy as np
-import os
-from app.simulation.models import SplitterSilencer
-from app.plotting.plots import plot_attenuation_curves
-from app.plotting.graphics import generate_3d_model
-from app.plotting.docs import export_pdf
+import numpy as np                                          # Para cálculos numéricos
+import os                                                   # Para manejo de directorios
+from app.simulation.models import SplitterSilencer          # Importar el modelo físico del silenciador
+from app.plotting.plots import plot_attenuation_curves      # Importar función para graficar curvas de atenuación
+from app.plotting.graphics import generate_3d_model         # Importar función para generar modelo 3D
+from app.plotting.docs import export_pdf                    # Importar función para exportar PDF
 
-OUTPUT_DIR = "outputs"
-PLOTS_DIR = os.path.join(OUTPUT_DIR, "plots")
-MODELS_DIR = os.path.join(OUTPUT_DIR, "models")
-PDF_DIR = os.path.join(OUTPUT_DIR, "pdf")
+OUTPUT_DIR = "outputs"                                      # Directorio de salida para resultados
+PLOTS_DIR = os.path.join(OUTPUT_DIR, "plots")               # Directorio para gráficos
+MODELS_DIR = os.path.join(OUTPUT_DIR, "models")             # Directorio para modelos 3D
+PDF_DIR = os.path.join(OUTPUT_DIR, "pdf")                   # Directorio para PDFs
 
-os.makedirs(PLOTS_DIR, exist_ok=True)
-os.makedirs(MODELS_DIR, exist_ok=True)
-os.makedirs(PDF_DIR, exist_ok=True)
+os.makedirs(PLOTS_DIR, exist_ok=True)                       # Crear directorio de gráficos si no existe
+os.makedirs(MODELS_DIR, exist_ok=True)                      # Crear directorio de modelos si no existe
+os.makedirs(PDF_DIR, exist_ok=True)                         # Crear directorio de PDFs si no existe
 
 def main():
+
+    #------------------------------------------
     # Parámetros de entrada
-    Q_m3h = 10000
-    V = 12
+    #------------------------------------------
+    
+    Q_m3h = 10000                                           # Caudal volumétrico en m³/h
+    V = 12                                                  # Volumen del silenciador en m³
     H = 0.3
     fmin, fmax = 100, 500
     L = 1.7
