@@ -85,60 +85,10 @@ def generate_3d_model(length, width, height, n_baffles, gap, show_dims=True, plo
         )
         plotter.add_mesh(baffle, color=baffle_color, opacity=0.9, show_edges=True)
 
-    # ========== AGREGAR MEDIDAS AL MODELO 3D ==========
-    if show_dims:
-        # Configuración de texto
-        text_color = 'red'
-        text_size = 12
-        
-        # Longitud total (L1)
-        plotter.add_text(f'L1 = {length:.3f} m', 
-                        position=(length/2, -width*0.1, -height*0.1), 
-                        font_size=text_size, color=text_color)
-        
-        # Ancho total (L2)
-        plotter.add_text(f'L2 = {width:.3f} m', 
-                        position=(-length*0.1, width/2, -height*0.1), 
-                        font_size=text_size, color=text_color)
-        
-        # Altura total (H)
-        plotter.add_text(f'H = {height:.3f} m', 
-                        position=(-length*0.1, -width*0.1, height/2), 
-                        font_size=text_size, color=text_color)
-        
-        # Número de baffles
-        plotter.add_text(f'Baffles: {n_baffles}', 
-                        position=(length*0.8, width*1.1, height*0.8), 
-                        font_size=text_size, color='blue')
-        
-        # Espesor de baffle
-        plotter.add_text(f'Espesor: {baffle_thickness:.3f} m', 
-                        position=(length*0.8, width*1.1, height*0.6), 
-                        font_size=text_size, color='blue')
-        
-        # Separación entre baffles
-        if len(baffle_positions) > 1:
-            separation = gap
-            plotter.add_text(f'Gap: {separation:.3f} m', 
-                            position=(length*0.8, width*1.1, height*0.4), 
-                            font_size=text_size, color='blue')
-        
-        # Agregar líneas de cota (líneas que muestran las dimensiones)
-        # Línea de cota para longitud
-        line_length = pv.Line(pointa=(0, -width*0.05, -height*0.05), 
-                             pointb=(length, -width*0.05, -height*0.05))
-        plotter.add_mesh(line_length, color=text_color, line_width=3)
-        
-        # Línea de cota para ancho
-        line_width = pv.Line(pointa=(-length*0.05, 0, -height*0.05), 
-                            pointb=(-length*0.05, width, -height*0.05))
-        plotter.add_mesh(line_width, color=text_color, line_width=3)
-        
-        # Línea de cota para altura
-        line_height = pv.Line(pointa=(-length*0.05, -width*0.05, 0), 
-                             pointb=(-length*0.05, -width*0.05, height))
-        plotter.add_mesh(line_height, color=text_color, line_width=3)
-
+    # ========== ELIMINAR TODAS LAS MEDIDAS DEL MODELO 3D ==========
+    # No mostrar dimensiones para mantener el modelo limpio y profesional
+    show_dims = False  # Forzar a False independientemente del parámetro de entrada
+    
     # Guardar imagen si se solicita
     if img_path:
         plotter.view_isometric()
