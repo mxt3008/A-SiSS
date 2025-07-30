@@ -68,3 +68,17 @@ def calcular_parametros(Q_m3h, V, H, L, fmin=100, fmax=500, material='lana100'):
         'alpha_interp': alpha_interp,
         'material': material
     }
+
+def calcular_parametros_custom(Q_m3h, V, H, L, fmin, fmax, custom_freqs, custom_alphas):
+    """
+    Calcula todos los parámetros geométricos del silenciador con un material personalizado
+    """
+    # Realizar los mismos cálculos básicos
+    params = calcular_parametros(Q_m3h, V, H, L, fmin, fmax, 'lana50')  # Base con un material cualquiera
+    
+    # Reemplazar la interpolación de coeficientes con los valores personalizados
+    freq = params['freq']
+    params['alpha_interp'] = np.interp(freq, custom_freqs, custom_alphas)
+    params['material'] = 'Personalizado'
+    
+    return params

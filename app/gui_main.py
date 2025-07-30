@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox
 from gui_interface import GUIInterface
-from app.simulation.solver import calcular_parametros
+from app.simulation.solver import calcular_parametros, calcular_parametros_custom
 from app.simulation.models import SplitterSilencer
 from app.plotting.plots import plot_attenuation_curves
 from app.plotting.graphics import generate_3d_model
@@ -59,9 +59,24 @@ class MainApp(QMainWindow):
         L = self.interface.input_L.value()
         material = self.interface.input_material.currentText()
         fmin, fmax = 100, 500
-
-        # Usa la función de cálculo corregida CON el material
-        params = calcular_parametros(Q_m3h, V, H, L, fmin, fmax, material)
+        
+        # Verificar si es material personalizado
+        is_custom = False
+        if "personal" in material:
+            is_custom = True
+            custom_freqs = self.interface.custom_material['freqs']
+            custom_alphas = self.interface.custom_material['alphas']
+            
+            # Actualizar límites de frecuencia según material personalizado
+            fmin = min(custom_freqs)
+            fmax = max(custom_freqs)
+        
+        # Usa la función de cálculo corregida con el material
+        if is_custom:
+            params = calcular_parametros_custom(Q_m3h, V, H, L, fmin, fmax, 
+                                              custom_freqs, custom_alphas)
+        else:
+            params = calcular_parametros(Q_m3h, V, H, L, fmin, fmax, material)
         splitter = SplitterSilencer(params["L"], params["width"], params["n_baffles"], params["alpha_interp"])
         TL = splitter.transmission_loss(params["freq"])
         delta_L = splitter.delta_L(params["freq"])
@@ -102,6 +117,53 @@ class MainApp(QMainWindow):
             f"Ancho total estimado: {params['width']:.4f} m"
         )
         self.interface.update_summary(resumen)
+
+        # Construir resumen con HTML para mejor apariencia
+        html_summary = f"""
+        <style>
+            h2 {{ color: #2C3E50; font-size: 14px; margin-top: 10px; margin-bottom: 5px; }}
+            table {{ border-collapse: collapse; width: 100%; margin: 5px 0; }}
+            td {{ padding: 3px 5px; }}
+            .label {{ color: #7F8C8D; width: 45%; }}
+            .value {{ color: #2C3E50; font-weight: bold; }}
+            .section {{ background-color: #EBF5FB; border-left: 4px solid #3498DB; 
+                      margin: 8px 0; padding: 5px 8px; border-radius: 3px; }}
+            .highlight {{ color: #E74C3C; }}
+        </style>
+
+        <h2>📊 PARÁMETROS DE ENTRADA</h2>
+        <div class="section">
+            <table>
+                <tr><td class="label">Caudal:</td><td class="value">{Q_m3h} m³/h</td></tr>
+                <tr><td class="label">Velocidad:</td><td class="value">{V} m/s</td></tr>
+                <tr><td class="label">Altura:</td><td class="value">{H} m</td></tr>
+                <tr><td class="label">Longitud:</td><td class="value">{L} m</td></tr>
+                <tr><td class="label">Material:</td><td class="value">{material}</td></tr>
+            </table>
+        </div>
+
+        <h2>📈 RESULTADOS DEL CÁLCULO</h2>
+        <div class="section">
+            <table>
+                <tr><td class="label">Área requerida:</td><td class="value">{params['S']:.4f} m²</td></tr>
+                <tr><td class="label">Separación entre baffles:</td><td class="value">{2*params['h']:.4f} m</td></tr>
+                <tr><td class="label">Número de rendijas:</td><td class="value">{params['n_espacios']}</td></tr>
+                <tr><td class="label">Total de baffles:</td><td class="value">{params['n_baffles']}</td></tr>
+                <tr><td class="label">Ancho total estimado:</td><td class="value highlight">{params['width']:.4f} m</td></tr>
+            </table>
+        </div>
+
+        <h2>🔊 ATENUACIÓN ACÚSTICA</h2>
+        <div class="section">
+            <table>
+                <tr><td class="label">Rango de frecuencias:</td><td class="value">{min(params['freq']):.0f} - {max(params['freq']):.0f} Hz</td></tr>
+                <tr><td class="label">Atenuación máxima:</td><td class="value highlight">{max(TL_total):.2f} dB</td></tr>
+            </table>
+        </div>
+        """
+
+        # Actualizar el resumen de atenuación con HTML
+        self.interface.update_summary(html_summary)
 
         # Parámetros para el modelo 3D
         baffle_thickness = 0.02
@@ -445,26 +507,57 @@ class MainApp(QMainWindow):
         baffle_thickness = 0.02  # m
         wall_thickness = 0.02  # m
         
-        summary_3d = (
-            f"DIMENSIONES DEL SILENCIADOR:\n\n"
-            f"• Longitud total: {self.data['L']:.2f} m\n"
-            f"• Altura total: {self.data['H']:.2f} m\n"
-            f"• Ancho total: {self.data['width']:.2f} m\n\n"
-            f"DATOS DE LOS BAFFLES:\n\n"
-            f"• Número de baffles: {self.data['n_baffles']}\n"
-            f"• Espesor de cada baffle: {baffle_thickness:.2f} m\n"
-            f"• Separación entre baffles: {self.data['h']*2:.3f} m\n"
-            f"• Material absorbente: {self.data['material']}\n\n"
-            f"RENDIJAS:\n\n"
-            f"• Número de rendijas: {self.data['n_espacios']}\n"
-            f"• Ancho de cada rendija: {self.data['h']*2:.3f} m\n\n"
-            f"CARACTERÍSTICAS CONSTRUCTIVAS:\n\n"
-            f"• Espesor de las paredes: {wall_thickness:.2f} m\n"
-            f"• Área de paso: {self.data['S']:.3f} m²\n"
-        )
+        # Generar contenido HTML con mejor formato y estilos
+        html_content = f"""
+        <style>
+            h2 {{ color: #2C3E50; font-size: 14px; margin-top: 10px; margin-bottom: 5px; }}
+            table {{ border-collapse: collapse; width: 100%; margin: 5px 0; }}
+            td {{ padding: 3px 5px; }}
+            .label {{ color: #7F8C8D; width: 55%; }}
+            .value {{ color: #2C3E50; font-weight: bold; }}
+            .section {{ background-color: #EBF5FB; border-left: 4px solid #3498DB; 
+                      margin: 8px 0; padding: 5px 8px; border-radius: 3px; }}
+            .highlight {{ color: #E74C3C; }}
+        </style>
+        
+        <h2>📐 DIMENSIONES PRINCIPALES</h2>
+        <div class="section">
+            <table>
+                <tr><td class="label">Longitud total:</td><td class="value">{self.data['L']:.2f} m</td></tr>
+                <tr><td class="label">Altura total:</td><td class="value">{self.data['H']:.2f} m</td></tr>
+                <tr><td class="label">Ancho total:</td><td class="value">{self.data['width']:.2f} m</td></tr>
+            </table>
+        </div>
+        
+        <h2>🔳 DATOS DE LOS BAFFLES</h2>
+        <div class="section">
+            <table>
+                <tr><td class="label">Número de baffles:</td><td class="value">{self.data['n_baffles']}</td></tr>
+                <tr><td class="label">Espesor de cada baffle:</td><td class="value">{baffle_thickness:.2f} m</td></tr>
+                <tr><td class="label">Separación entre baffles:</td><td class="value">{self.data['h']*2:.3f} m</td></tr>
+                <tr><td class="label">Material absorbente:</td><td class="value">{self.data['material']}</td></tr>
+            </table>
+        </div>
+        
+        <h2>↕️ RENDIJAS</h2>
+        <div class="section">
+            <table>
+                <tr><td class="label">Número de rendijas:</td><td class="value">{self.data['n_espacios']}</td></tr>
+                <tr><td class="label">Ancho de cada rendija:</td><td class="value">{self.data['h']*2:.3f} m</td></tr>
+            </table>
+        </div>
+        
+        <h2>⚙️ CARACTERÍSTICAS CONSTRUCTIVAS</h2>
+        <div class="section">
+            <table>
+                <tr><td class="label">Espesor de las paredes:</td><td class="value">{wall_thickness:.2f} m</td></tr>
+                <tr><td class="label">Área de paso:</td><td class="value class="highlight">{self.data['S']:.3f} m²</td></tr>
+            </table>
+        </div>
+        """
         
         # Actualizar el cuadro de resumen en la interfaz
-        self.interface.update_3d_summary(summary_3d)
+        self.interface.update_3d_summary(html_content)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
